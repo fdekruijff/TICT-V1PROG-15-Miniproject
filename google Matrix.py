@@ -8,4 +8,4 @@ def distance(origin, destination):
     return delta
 
 
-print (distance('amersfoort', 'utrecht'))
+print(distance('amersfoort', 'utrecht'))
