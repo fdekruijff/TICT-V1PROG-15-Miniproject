@@ -15,9 +15,9 @@ monteurs= {'tim':[52.1561113,5.387826600000039], 'jan':[52.09073739999999,5.1214
 for Name, GEO in monteurs.items():
         geo= (tuple(GEO))
         afstand= (distance(geo, kaartautomaat))
-        afstand= afstand[:-1]
-        afstand= afstand[:-1]
+        afstand= afstand[:-2]
         afstand= float(afstand)
+
 
         if afstand <= kleinsteafstand:
             kleinsteafstand = afstand
