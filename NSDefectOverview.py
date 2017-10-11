@@ -3,6 +3,7 @@
     School: Hogeschool Utrecht B HBO-ICT
 """
 
+import datetime
 import operator
 import tkinter as tk
 import xml.etree.ElementTree as Et
@@ -19,10 +20,10 @@ from CardMachineOverviewPage import CardMachineOverviewPage
 from GenerateMechanic import GenerateMechanic
 from Mechanic import Mechanic
 from MechanicOverviewPage import MechanicOverviewPage
+from Notification import Notification
 from NotificationPage import NotificationPage
 from RegisterNewMechanicPage import RegisterNewMechanicPage
 from StartPage import StartPage
-from Notification import Notification
 
 
 class NSDefectOverview(tk.Tk):
@@ -44,45 +45,10 @@ class NSDefectOverview(tk.Tk):
 
         self.cardMachineList = []
         self.mechanicList = []
-        self.notificationList = [
-            Notification(datetime.datetime.now(), "Just 1 random entry"),
-            Notification(datetime.datetime.now(), "Just 2 random entry"),
-            Notification(datetime.datetime.now(), "Just 3 random entry"),
-            Notification(datetime.datetime.now(), "Just 4 random entry"),
-            Notification(datetime.datetime.now(), "Just 5 random entry"),
-            Notification(datetime.datetime.now(), "Just 6 random entry"),
-            Notification(datetime.datetime.now(), "Just 7 random entry"),
-            Notification(datetime.datetime.now(), "Just 8 random entry"),
-            Notification(datetime.datetime.now(), "Just 9 random entry"),
-            Notification(datetime.datetime.now(), "Just 1 random entry"),
-            Notification(datetime.datetime.now(), "Just 2 random entry"),
-            Notification(datetime.datetime.now(), "Just 3 random entry"),
-            Notification(datetime.datetime.now(), "Just 4 random entry"),
-            Notification(datetime.datetime.now(), "Just 5 random entry"),
-            Notification(datetime.datetime.now(), "Just 6 random entry"),
-            Notification(datetime.datetime.now(), "Just 7 random entry"),
-            Notification(datetime.datetime.now(), "Just 8 random entry"),
-            Notification(datetime.datetime.now(), "Just 9 random entry"),
-            Notification(datetime.datetime.now(), "Just 1 random entry"),
-            Notification(datetime.datetime.now(), "Just 2 random entry"),
-            Notification(datetime.datetime.now(), "Just 3 random entry"),
-            Notification(datetime.datetime.now(), "Just 4 random entry"),
-            Notification(datetime.datetime.now(), "Just 5 random entry"),
-            Notification(datetime.datetime.now(), "Just 6 random entry"),
-            Notification(datetime.datetime.now(), "Just 7 random entry"),
-            Notification(datetime.datetime.now(), "Just 8 random entry"),
-            Notification(datetime.datetime.now(), "Just 9 random entry"),
-            Notification(datetime.datetime.now(), "Just 1 random entry"),
-            Notification(datetime.datetime.now(), "Just 2 random entry"),
-            Notification(datetime.datetime.now(), "Just 3 random entry"),
-            Notification(datetime.datetime.now(), "Just 4 random entry"),
-            Notification(datetime.datetime.now(), "Just 5 random entry"),
-            Notification(datetime.datetime.now(), "Just 6 random entry"),
-            Notification(datetime.datetime.now(), "Just 7 random entry"),
-            Notification(datetime.datetime.now(), "Just 8 random entry"),
-            Notification(datetime.datetime.now(), "Just 9 random entry"),
-            Notification(datetime.datetime.now(), "Just 10 random entry")
-        ]
+        self.notificationList = []
+
+        self.notification_information = []
+        self.popup = None
 
         self.ns_api_username = "floris.dekruijff@student.hu.nl"
         self.ns_api_password = "FK7CDKplQPsyOpBuPtkURW8incvUdT3T2ZSVoSkrTRdF7r5ARvCOyQ"
@@ -117,8 +83,9 @@ class NSDefectOverview(tk.Tk):
 
     def show_frame(self, cont):
         frame = self.frames[cont]
+        if cont == "NotificationPage":
+            frame.update_notification_list()
         frame.tkraise()
-        # print(frame)
 
     def populate_card_machine_list(self):
         """ Populates the cardMachineList with generated Machines based on station """
@@ -218,16 +185,16 @@ class NSDefectOverview(tk.Tk):
              {"text": "Lorem Ipsum", "command": "print *cannot contain ()*"}
             ]
         """
-        popup = tk.Tk()
-        popup.wm_title(title)
-        popup.geometry("{}x{}+{}+{}".format(
+        self.popup = tk.Tk()
+        self.popup.wm_title(title)
+        self.popup.geometry("{}x{}+{}+{}".format(
             popup_width,
             popup_height,
             int(self.winfo_x() + (self.width / 2 - popup_width / 2)),
             int(self.winfo_y() + (self.height / 2 - popup_height / 2))
         ))
-        popup.configure(background=background_color)
-        label = tk.Label(popup, text=message, background=background_color)
+        self.popup.configure(background=background_color)
+        label = tk.Label(self.popup, text=message, background=background_color)
         label.pack(side="top", fill="x", pady=20, padx=20)
 
         if len(buttons) == 1:
@@ -238,7 +205,7 @@ class NSDefectOverview(tk.Tk):
         rel_width = 80 / popup_width
         rel_height = 35 / popup_height
         for x in buttons:
-            b = tk.Button(popup,
+            b = tk.Button(self.popup,
                           background=self.buttonBackgroundColor,
                           foreground=self.buttonForegroundColor,
                           relief=self.buttonRelief,
@@ -246,7 +213,12 @@ class NSDefectOverview(tk.Tk):
                           command=eval(x['command']))
             b.place(relwidth=rel_width, relheight=rel_height, relx=relative_x - (rel_width / 2), rely=0.45)
             relative_x += 0.3
-        popup.mainloop()
+        self.popup.mainloop()
+
+    def new_notification(self):
+        self.notification_information[1].availability = "Occupied"
+        self.notificationList.append(Notification(datetime.datetime.now(), self.notification_information[0]))
+        self.popup.destroy()
 
     def dispatch_mechanic(self, card_machine: CardMachine, mechanic: Mechanic):
         """
@@ -256,9 +228,11 @@ class NSDefectOverview(tk.Tk):
         message = ""
         title = ""
         buttons = []
+        travel_time = self.get_distance_travel_time(
+            card_machine.latitude, card_machine.longitude, mechanic.latitude, mechanic.longitude)[1]
         if card_machine.defect == "Defect" and mechanic.availability == "Available":
             # Go directly to the create new event form.
-            pass
+            self.new_notification()
 
         elif card_machine.defect == "Defect" and mechanic.availability == "Occupied":
             # TODO: Maybe find the next closest available mechanic.
@@ -266,7 +240,7 @@ class NSDefectOverview(tk.Tk):
             message = "Unfortunately {} is {}, but {} is {}".format(
                 card_machine.station_name, card_machine.defect, mechanic.name, mechanic.availability.lower()
             )
-            buttons = [{"text": "Ok", "command": "popup.destroy"}]
+            buttons = [{"text": "Ok", "command": "self.popup.destroy"}]
 
         elif card_machine.defect == "Operational" and mechanic.availability == "Occupied":
             # TODO: Maybe find the next closest available mechanic.
@@ -274,15 +248,20 @@ class NSDefectOverview(tk.Tk):
             message = "{} is {}, but {} is {}".format(
                 card_machine.station_name, card_machine.defect, mechanic.name, mechanic.availability.lower()
             )
-            buttons = [{"text": "Yes, I'm sure", "command": "0", "mechanic": mechanic, "card_machine": card_machine},
-                       {"text": "Cancel", "command": "popup.destroy"}]
+            buttons = [{"text": "Yes, I'm sure", "command": "self.new_notification"},
+                       {"text": "Cancel", "command": "self.popup.destroy"}]
 
         elif card_machine.defect == "Operational" and mechanic.availability == "Available":
             title = "Are you sure?"
             message = "{} is {} and {} is {}".format(
                 card_machine.station_name, card_machine.defect, mechanic.name, mechanic.availability.lower()
             )
-            buttons = [{"text": "Yes, I'm sure", "command": "0", "mechanic": mechanic, "card_machine": card_machine},
-                       {"text": "Cancel", "command": "popup.destroy"}]
+            buttons = [{"text": "Yes, I'm sure", "command": "self.new_notification"},
+                       {"text": "Cancel", "command": "self.popup.destroy"}]
 
+        self.notification_information = [
+            "{} was dispatched to {}, travel time is {} minutes.".format(
+                mechanic.name, card_machine.station_name, travel_time
+            ), mechanic, card_machine
+        ]
         self.new_popup(title, message, buttons, 450, 150, "#fcc63f")
