@@ -4,16 +4,18 @@
     TICT-V1PROG-15 Project
 """
 
-import requests
-import os
-import operator
 import datetime
+import operator
+import os
+import requests
 import sqlite3
+
+import xml.etree.ElementTree as Et
+
 from classes.CardMachine import CardMachine
+from classes.GenerateMechanic import GenerateMechanic
 from classes.Mechanic import Mechanic
 from classes.Notification import Notification
-from classes.GenerateMechanic import GenerateMechanic
-import xml.etree.ElementTree as Et
 
 conn = sqlite3.connect('nsdefect.db')
 c = conn.cursor()
@@ -40,52 +42,109 @@ def read_all():
 
 create_table()
 class PopulateDataLists:
+    """
+        Static class that reads XML data files to fill data lists with previous data.
+        There are three types of data that need to be retrieved and checked before continuing.
+
+        1. NS API data for stations, and to derive CardMachine objects from it.
+        2. Mechanic object data saved to XML. This file saves Mechanic attributes to display changes after program went
+            offline. If this file is not present, it is created and filled with GenerateMechanic.py
+        3. Notification object data saved to XML. This file saves Notification data to save a history of
+            events in the program.
+    """
+
     @staticmethod
     def populate_card_machine_list(ns_api_username: str, ns_api_password: str) -> list:
-        return_list = []
-        response = None
+        """
+            Calls out to NS API to retrieve station information. Creates CardMachine objects based
+            on the station information.
+
+            :param ns_api_username: string for the NS API username
+            :param ns_api_password: string for the NS API password
+
+            Check if the function returns a list.
+            >>> type(
+            ...     PopulateDataLists.populate_card_machine_list(
+            ...         "floris.dekruijff@student.hu.nl", "FK7CDKplQPsyOpBuPtkURW8incvUdT3T2ZSVoSkrTRdF7r5ARvCOyQ"
+            ...     )
+            ... )
+            <class 'list'>
+
+            Check if the function returns at least 400 stations (as it should).
+            >>> len(
+            ...     PopulateDataLists.populate_card_machine_list(
+            ...         "floris.dekruijff@student.hu.nl", "FK7CDKplQPsyOpBuPtkURW8incvUdT3T2ZSVoSkrTRdF7r5ARvCOyQ"
+            ...     )
+            ... ) > 400
+            True
+         """
         try:
-            response = requests.get(
-                url="http://webservices.ns.nl/ns-api-stations-v2",
-                auth=(ns_api_username, ns_api_password)
-            )
+            return_list = []
+            response = requests.get(url="http://webservices.ns.nl/ns-api-stations-v2",
+                                    auth=(ns_api_username, ns_api_password))
+
+            # Parse the XML data and derive necessary information from it.
+            for element in Et.fromstring(response.text):
+                is_in_netherlands = False
+                station_name = ""
+                latitude = ""
+                longitude = ""
+                for meta in element:
+                    if meta.tag == "Namen":
+                        for name in meta:
+                            if name.tag == "Lang":
+                                station_name = name.text
+                    if meta.text == "NL":
+                        is_in_netherlands = True
+                    if meta.tag == "Lat":
+                        latitude = meta.text
+                    if meta.tag == "Lon":
+                        longitude = meta.text
+                # We only want train stations based in The Netherlands, if so create the CardMachine object.
+                if is_in_netherlands:
+                    return_list.append(CardMachine(station_name, longitude, latitude))
+            return return_list
         except requests.exceptions.ConnectionError:
             exit("Failed to establish connection with NS API, please try again.")
 
-        for element in Et.fromstring(response.text):
-            is_in_netherlands = False
-            station_name = ""
-            latitude = ""
-            longitude = ""
-            for meta in element:
-                if meta.tag == "Namen":
-                    for name in meta:
-                        if name.tag == "Lang":
-                            station_name = name.text
-                if meta.text == "NL":
-                    is_in_netherlands = True
-                if meta.tag == "Lat":
-                    latitude = meta.text
-                if meta.tag == "Lon":
-                    longitude = meta.text
-            if is_in_netherlands:
-                return_list.append(CardMachine(station_name, longitude, latitude))
-
-        return return_list
-
     @staticmethod
     def populate_mechanic_list(mechanic_file):
+        """
+            Reads mechanic_file if it's present and has data in it.
+            If it is empty Mechanics will be generated by GenerateMechanic and written to the XML file.
+            If it has data in it it will be parsed and returned as list.
+
+            :param mechanic_file: string to the location of the mechanic XML file
+
+            Check if the function returns a list.
+            >>> type(
+            ...     PopulateDataLists.populate_mechanic_list(
+            ...         "../mechanics.xml"
+            ...     )
+            ... )
+            <class 'list'>
+
+            Check if the function returns at least 12 mechanics (one per province).
+            >>> len(
+            ...     PopulateDataLists.populate_mechanic_list(
+            ...         "../mechanics.xml"
+            ...     )
+            ... ) > 12
+            True
+         """
         create_table()
         return_list = []
-        if os.path.isfile(mechanic_file):
-            if os.stat(mechanic_file).st_size == 0:
+        if os.path.isfile(mechanic_file):  # Checks if file is present.
+            if os.stat(mechanic_file).st_size == 0:  # Checks if file has data in it
                 root = Et.Element("mechanics")
                 for province in GenerateMechanic.regions:
                     for amount in range(5):
+                        # If the file was empty or not present Mechanics will be generated and written to the file.
                         mechanic = GenerateMechanic.generate_mechanic(province)
                         return_list.append(mechanic)
 
                         data_entry_mechanics(mechanic.name, mechanic.gender, mechanic.age, mechanic.latitude, mechanic.longitude, mechanic.region, mechanic.schedule, mechanic.availability, mechanic.shift, mechanic.phone_number)
+
                         mec = Et.SubElement(root, "mechanic")
                         Et.SubElement(mec, "name").text = str(mechanic.name)
                         Et.SubElement(mec, "gender").text = str(mechanic.gender)
@@ -102,6 +161,7 @@ class PopulateDataLists:
                 c.close()
                 conn.close()
             else:
+                # If there is data in the XML file it's being parsed and new Mechanic objects will be made from it.
                 tree = Et.parse(mechanic_file)
                 for x in tree.getroot():
                     name = gender = age = latitude = longitude = region = schedule = availability = shift = phone = ""
@@ -129,14 +189,31 @@ class PopulateDataLists:
                     return_list.append(
                         Mechanic(name, gender, age, latitude, longitude, region, schedule, availability, shift, phone)
                     )
+            # Sort the Mechanic list based on the name on alphabetical order.
             return_list.sort(key=operator.attrgetter('name'))
             return return_list
         else:
+            # If the file is missing, create it and call the function again.
             open(mechanic_file, 'w')
             return PopulateDataLists.populate_mechanic_list(mechanic_file)
 
     @staticmethod
     def populate_notification_list(notification_file):
+        """
+            Reads notification_file if it's present and has data in it.
+            If it is empty the basic notifications Element root will be written to it.
+            If it has data in it it will be parsed and returned as list.
+
+            :param notification_file: string to the location of the notification XML file
+
+            Check if the function returns a list.
+            >>> type(
+            ...     PopulateDataLists.populate_notification_list(
+            ...         "../notifications.xml"
+            ...     )
+            ... )
+            <class 'list'>
+         """
         return_list = []
         if os.path.isfile(notification_file):
             if os.stat(notification_file).st_size == 0:
